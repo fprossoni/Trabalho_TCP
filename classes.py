@@ -135,7 +135,7 @@ class ControleMusica:
             self.instrumento_atual = instrumento
 
     def alterarVolume(self):
-        if self.volume_atual * 2 > self.volume_atual:
+        if self.volume_atual * 2 > self.max_volume:
             self.volume_atual = self.max_volume
             print('O volume foi aumentado para o máximo')
 
