@@ -2,9 +2,7 @@ import numpy as np
 
 
 class GeradorMusica:
-    def __init__(self, texto_entrada: str):
-        self.texto_entrada = texto_entrada
-        self.texto_convertido = None  # texto convertido sera recebido posteriormente
+    def __init__(self):
         self.estador_leitor = 0  # 1 para leitor em execução, 0 para leitor fora de execução
         self.estado_execucao = 0 # 1 para programa em execução, 0 para programa fora de execução
 
@@ -42,8 +40,8 @@ class LeitorTexto:
         else:
             self.texto_input = texto_input
             self.lista_caracteres = list(texto_input)
-
-    def lerTexto(self):
+            
+    def exibirTexto(self):
         if self.texto_input is not None:
             print(self.texto_input)
         else:
