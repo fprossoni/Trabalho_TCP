@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class GeradorMusica:
     def __init__(self):
         self.estador_leitor = 0  # 1 para leitor em execução, 0 para leitor fora de execução
@@ -70,18 +69,8 @@ class TransformaMusica:
 
 
 class MapaCaracteres:
-    def __init__(self, lista_caracteres=None, lista_eventos=None, caractere=None, evento=None):
+    def __init__(self):
         self.dicionario_mapeamento = {}
-
-        if lista_caracteres is not None and lista_eventos is not None:
-            
-            if len(lista_caracteres) == len(lista_eventos):
-                self.mapeiaCaracteres(lista_caracteres, lista_eventos)
-            else:
-                print('As listas de caracteres e eventos devem ter o mesmo tamanho.')
-
-        if caractere is not None and evento is not None:
-            self.adicionaCaractere(caractere, evento)
 
     def mapeiaCaracteres(self, lista_caracteres, lista_eventos):
         if len(lista_caracteres) == len(lista_eventos):
