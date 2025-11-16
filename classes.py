@@ -1,4 +1,11 @@
 import numpy as np
+import time
+
+OITAVA_DEFAULT = 0
+VOLUME_DEFAULT = 20
+BPM_DEFAULT = 60
+MAX_VOLUME = 100
+MAX_OITAVA = 9
 
 class GeradorMusica:
     def __init__(self):
@@ -62,8 +69,10 @@ class TransformaMusica:
 
     def converteCaracteres(self):
         self.lista_saida = []
+        VALOR_NAO_ENCONTRADO = None
+
         for caractere in self.lista_entrada:
-            nota_atual = self.mapa_transformacao.get(caractere, -1)
+            nota_atual = self.mapa_transformacao.get(caractere, VALOR_NAO_ENCONTRADO)
             self.lista_saida.append(nota_atual)
 
 
@@ -104,15 +113,19 @@ class MapaCaracteres:
                 print(f'{chave} --> {valor}')
 
 
+#ADICIONAR METODO PARRA MUDAR MAX OITAVA E MAX VOLUME
 
 class ControleMusica:
-    def __init__(self, instrumento_atual, volume_atual, oitava_atual):
+    def __init__(self, instrumento_atual, volume_atual, oitava_atual, bpm_atual):
         self.instrumento_atual = instrumento_atual
         self.volume_atual = volume_atual
         self.oitava_atual = oitava_atual
-        self.max_oitava = 7
-        self.oitava_default = 1
-        self.max_volume = 100
+        self.bpm_atual = bpm_atual
+
+        self.oitava_default = OITAVA_DEFAULT
+
+        self.max_oitava = MAX_OITAVA
+        self.max_volume = MAX_VOLUME
 
     def alterarInstrumento(self, instrumento):
         if instrumento == self.instrumento_atual:
@@ -122,13 +135,15 @@ class ControleMusica:
             self.instrumento_atual = instrumento
 
     def alterarVolume(self):
-        if self.volume_atual * 2 > self.max_volume:
+        MULTIPLICAR_VOLUME = 2
+
+        if self.volume_atual * MULTIPLICAR_VOLUME > self.max_volume:
             self.volume_atual = self.max_volume
             print('O volume foi aumentado para o máximo')
 
         else:
-            self.volume_atual = self.volume_atual * 2
-            print('O volume foi dobrado')
+            self.volume_atual = self.volume_atual * MULTIPLICAR_VOLUME
+            print('O volume foi aumentado')
 
     def alterarOitava(self):
         if self.oitava_atual == self.max_oitava:
@@ -140,16 +155,27 @@ class ControleMusica:
 
 
 class TocadorNotas:
-    def __init__(self, estado_player, nota, instrumento, volume, oitava):
+    def __init__(self, estado_player, lista_notas, instrumento, volume, oitava, bpm):
         self.estado_player = estado_player
-        self.nota = nota
+        self.lista_nota = lista_notas
         self.instrumento = instrumento
         self.volume = volume
         self.oitava = oitava
+        self.bpm = bpm
 
-    def tocaSom(self, instrumento, volume, oitava):
+    def tocaSom(self, nota, instrumento, volume, oitava, bpm):
         # executa comando da biblioteca para tocar uma NOTA com o INSTRUMENTO, com as configurações de VOLUME X e OITAVA Y
         ...
+
+class DicionarioInstrumentos:
+    def __init__(self):
+
+        self.dicionario_instrumentos = {
+            "PIANO": 0,
+            "MUSICBOX": 10,
+            "FLAUTA": 73,
+            "TIRO": 127,
+        }
 
 
 
