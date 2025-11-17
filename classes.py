@@ -1,11 +1,15 @@
 import numpy as np
 import time
+import pygame
+import pygame.midi
 
 OITAVA_DEFAULT = 0
 VOLUME_DEFAULT = 20
 BPM_DEFAULT = 60
 MAX_VOLUME = 100
 MAX_OITAVA = 9
+OITAVA_OFFSET = 12
+VALOR_NAO_ENCONTRADO = None
 
 class GeradorMusica:
     def __init__(self):
@@ -65,16 +69,22 @@ class TransformaMusica:
     def __init__(self, lista_entrada, mapa_transformacao):
         self.lista_entrada = lista_entrada
         self.mapa_transformacao = mapa_transformacao
-        self.lista_saida = []
 
     def converteCaracteres(self):
         self.lista_saida = []
-        VALOR_NAO_ENCONTRADO = None
+        i = 0
 
-        for caractere in self.lista_entrada:
-            nota_atual = self.mapa_transformacao.get(caractere, VALOR_NAO_ENCONTRADO)
-            self.lista_saida.append(nota_atual)
+        while i < len(self.lista_entrada):
 
+            string4 = self.lista_entrada[i:i+4]
+            if string4 in ("BPM+", "OIT+", "OIT-"):
+                self.lista_saida.append(self.mapa_transformacao[string4])
+                i += 4
+                continue
+
+            caractere = self.lista_entrada[i]
+            self.lista_saida.append(self.mapa_transformacao.get(caractere, VALOR_NAO_ENCONTRADO))
+            i += 1
 
 
 class MapaCaracteres:
@@ -83,6 +93,7 @@ class MapaCaracteres:
 
     def mapeiaCaracteres(self, lista_caracteres, lista_eventos):
         if len(lista_caracteres) == len(lista_eventos):
+
             for i in range(len(lista_caracteres)):
                 caractere = lista_caracteres[i]
                 evento = lista_eventos[i]
@@ -113,29 +124,58 @@ class MapaCaracteres:
                 print(f'{chave} --> {valor}')
 
 
-#ADICIONAR METODO PARRA MUDAR MAX OITAVA E MAX VOLUME
-
 class ControleMusica:
-    def __init__(self, instrumento_atual, volume_atual, oitava_atual, bpm_atual):
-        self.instrumento_atual = instrumento_atual
+    def __init__(self, instrumento_atual_id, volume_atual, oitava_atual, bpm_atual):
+        self.instrumento_atual_id = instrumento_atual_id
         self.volume_atual = volume_atual
         self.oitava_atual = oitava_atual
         self.bpm_atual = bpm_atual
 
         self.oitava_default = OITAVA_DEFAULT
-
         self.max_oitava = MAX_OITAVA
         self.max_volume = MAX_VOLUME
 
-    def alterarInstrumento(self, instrumento):
-        if instrumento == self.instrumento_atual:
-            print(f'O instrumento "{instrumento}" já esta em uso.')
+        self.dicionario_instrumentos = {
+            "PIANO": 0,
+            "MUSICBOX": 10,
+            "ORGAO_TUBOS": 19,
+            "TROMPETE": 56,
+            "FLAUTA": 73,
+            "GOBLINS": 101,
+            "TELEFONE": 124,
+            "TIRO": 127,
+        }
+
+
+        self.dicionario_notas = {
+            "NOTA_LA": 21,         # A0
+            "NOTA_SI": 23,         # B0
+            "NOTA_DO": 12,         # C0
+            "NOTA_RE": 14,         # D0
+            "NOTA_MI": 16,         # E0
+            "NOTA_FA": 17,         # F0
+            "NOTA_SOL": 19,        # G0
+            "NOTA_SI_BEMOL": 22,   # Bb0 (H0)
+        }
+
+
+
+
+    def alterarInstrumento(self, instrumento: str):
+
+        instrumento_id = self.dicionario_instrumentos.get(instrumento.upper().strip(), VALOR_NAO_ENCONTRADO)
+
+        if instrumento_id != None:
+            if instrumento_id == self.instrumento_atual_id:
+                print(f'O instrumento "{instrumento}" já esta em uso.')
+            
+            else:
+                self.instrumento_atual_id = instrumento_id
 
         else:
-            self.instrumento_atual = instrumento
+            print('Instrumento nao encontrado')
 
-    def alterarVolume(self):
-        MULTIPLICAR_VOLUME = 2
+    def alterarVolume(self, MULTIPLICAR_VOLUME):
 
         if self.volume_atual * MULTIPLICAR_VOLUME > self.max_volume:
             self.volume_atual = self.max_volume
@@ -154,36 +194,40 @@ class ControleMusica:
 
 
 
-class TocadorNotas:
-    def __init__(self, estado_player, lista_notas, instrumento, volume, oitava, bpm):
-        self.estado_player = estado_player
-        self.lista_nota = lista_notas
-        self.instrumento = instrumento
-        self.volume = volume
-        self.oitava = oitava
-        self.bpm = bpm
+class TocadorNotas():
+        def __init__(self, controle: ControleMusica):
+            self.controle = controle
 
-    def tocaSom(self, nota, instrumento, volume, oitava, bpm):
-        # executa comando da biblioteca para tocar uma NOTA com o INSTRUMENTO, com as configurações de VOLUME X e OITAVA Y
-        ...
+            pygame.init()
+            pygame.midi.init()
 
-class DicionarioInstrumentos:
-    def __init__(self):
-
-        self.dicionario_instrumentos = {
-            "PIANO": 0,
-            "MUSICBOX": 10,
-            "FLAUTA": 73,
-            "TIRO": 127,
-        }
+            self.player = pygame.midi.Output(
+                pygame.midi.get_default_output_id()
+            )
+            # define o instrumento atual
+            self.player.set_instrument(self.controle.instrumento_atual_id)
 
 
+        def tocarNota(self, nome_nota_base: str):
 
-    
+            nota_base = self.controle.dicionario_notas.get(nome_nota_base)
 
+            if nota_base is None:
+                print(f"Nota '{nome_nota_base}' não existe.")
+                return
+            
+            nota_final = nota_base + (OITAVA_OFFSET * self.controle.oitava_atual)
 
+            self.player.set_instrument(self.controle.instrumento_atual_id)
 
+            self.player.note_on(nota_final, self.controle.volume_atual)
 
+        def pararNota(self, nome_nota_base: str):
+            nota_base = self.controle.dicionario_notas.get(nome_nota_base)
+            if nota_base is None:
+                return
+            
+            nota_final = nota_base + (OITAVA_OFFSET * self.controle.oitava_atual)
+            self.player.note_off(nota_final, self.controle.volume_atual)
 
-
-
+        #definir metodo para tocar as notas em sequencia, parando nota que estava tocando antes de tocar a proxima (considerar BPM)
