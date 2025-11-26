@@ -1,80 +1,64 @@
-
 import pygame
 import pygame.midi
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk #abrir depois
-import pygame
-import pygame.midi
+from tkinter import filedialog
 import random
 import time
+import threading
 
-OITAVA_DEFAULT = 0
+try:
+    from midiutil import MIDIFile
+    HAS_MIDIUTIL = True
+except ImportError:
+    HAS_MIDIUTIL = False
+
 VOLUME_DEFAULT = 60
 BPM_DEFAULT = 60
-MAX_VOLUME = 127
-MIN_VOLUME = 0
-MAX_OITAVA = 9
-MIN_OITAVA = -2
+
 OITAVA_OFFSET = 12
 AUMENTO_BPM = 80
+
 MULTIPLICA_VOLUME = 2
-MAX_NOTA = MAX_INSTRUMENTO = 127
-MIN_NOTA = 0
+MAX_NOTA = MAX_INSTRUMENTO = MAX_VOLUME = 127
+MAX_OITAVA = 9
+
+MIN_NOTA = MIN_INSTRUMENTO = OITAVA_DEFAULT = MIN_VOLUME = INSTRUMENTO_DEFAULT = 0
+MIN_OITAVA = -2
 
 INSTRUMENTOS = {
-    "Piano (0)": 0,
-    "Tubular Bells (14)": 14,
-    "Organ (19)": 19,
+    "Piano (0)": 0, 
+    "Tubular Bells (14)": 14, 
+    "Organ (19)": 19, 
     "Bandoneon (23)": 23,
-    "Guitar (27)": 27,
-    "Bass (32)": 32,
-    "Violin (40)": 40,
+    "Guitar (27)": 27, 
+    "Bass (32)": 32, 
+    "Violin (40)": 40, 
     "Trumpet (56)": 56,
-    "Flute (73)": 73,
-    "Ocarina (79)": 79,
-    "Calliope (82)": 82,
+    "Flute (73)": 73, 
+    "Ocarina (79)": 79, 
+    "Calliope (82)": 82, 
     "Goblins (101)": 101,
-    "Bagpipe (109)": 109,
-    "Agogo (113)": 113,
+    "Bagpipe (109)": 109, 
+    "Agogo (113)": 113, 
     "Woodblock (115)": 115,
-    "Telephone (124)": 124,
+    "Telephone (124)": 124, 
     "Seashore (122)": 122,
 }
 
 INSTRUMENTO_BANDONEON = INSTRUMENTOS["Bandoneon (23)"]
 INSTRUMENTO_AGOGO = INSTRUMENTOS["Agogo (113)"]
 INSTRUMENTO_TELEFONE = INSTRUMENTOS["Telephone (124)"]
-INSTRUMENTO_ONDAS = INSTRUMENTOS["Seashore (122)"]
-INSTRUMENTO_PADRAO_INICIAL = INSTRUMENTOS["Piano (0)"]
 
-class GeradorMusica:
-    def __init__(self):
-        self.estador_leitor = 0  # 1 para leitor em execução, 0 para leitor fora de execução
-        self.estado_execucao = 0 # 1 para programa em execução, 0 para programa fora de execução
+MAPA_NOTAS_MIDI = {
+    "NOTA_DO": 60, 
+    "NOTA_RE": 62, 
+    "NOTA_MI": 64, 
+    "NOTA_FA": 65,
+    "NOTA_SOL": 67, 
+    "NOTA_LA": 69, 
+    "NOTA_SI": 71, 
+    "NOTA_SI_BEMOL": 70
+}
 
-    def iniciarExecucao(self):
-        if self.estado_execucao:
-            print('O programa já esta em execução')
-
-        else:
-            print('Iniciando a execução do programa')
-            self.estado_execucao = 1
-
-    def interromperExecucao(self):
-        if not (self.estado_execucao):
-            print('O programa não está executando')
-
-        else:
-            print('Interrompendo a execução do programa')
-            self.estado_execucao = 0
-
-    def atualizaEstado(self):
-        #recebe os estados dos métodos das outras classes, verifica se é possivel a execução e atualiza os estados
-        ...
-
-    def tratarErros(self):
-        #verifica se foi recebido alguma flag indicando erros e, em caso positivo, toma as medidas para corrigir esses erros
-        ...
 
 
 class LeitorTexto:
@@ -93,38 +77,45 @@ class LeitorTexto:
 
         if caminho:
             self.caminho_arquivo = caminho
-            with open(caminho, 'r', encoding='utf-8') as arquivo:
-                self.texto = arquivo.read()
-            return self.texto
-        
+
+            try:
+                with open(caminho, 'r', encoding='utf-8') as arquivo:
+                    self.texto = arquivo.read()
+                return self.texto
+            
+            except Exception as e:
+                print(f"Erro ao ler arquivo: {e}")
+                return None
+            
         return None
 
     def salvarArquivo(self):
-        if self.caminho_arquivo:
-            with open(self.caminho_arquivo, 'w', encoding='utf-8') as arquivo:
-                arquivo.write(self.texto)
-            print(f"Arquivo salvo em: {self.caminho_arquivo}")
-        else:
-            caminho = filedialog.asksaveasfilename(
-                defaultextension=".txt",
-                filetypes=[("Arquivos de Texto", "*.txt")]
-            )
-            if caminho:
-                self.caminho_arquivo = caminho
+        return self.salvarComo()
+
+    def salvarComo(self):
+        caminho = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Arquivos de Texto", "*.txt")]
+        )
+        if caminho:
+            self.caminho_arquivo = caminho
+            try:
                 with open(caminho, 'w', encoding='utf-8') as arquivo:
                     arquivo.write(self.texto)
-                print(f"Arquivo salvo em: {self.caminho_arquivo}")
+                return True, f"Salvo em: {self.caminho_arquivo}"
+            except Exception as e:
+                return False, str(e)
+        return False, "Salvamento cancelado."
+
 
 
 class TransformaMusica:
     def __init__(self):
         self.lista_eventos = []
-        self.texto_original = ""
 
     def processarTexto(self, texto_entrada):
-        self.texto_original = texto_entrada
+
         self.lista_eventos = []
-        
         i = 0
         tamanho = len(texto_entrada)
         ultimo_evento_foi_nota = False
@@ -135,13 +126,13 @@ class TransformaMusica:
             
             if i + 4 <= tamanho:
                 trecho = texto_entrada[i:i+4]
-                
+
                 if trecho == "BPM+":
                     self.lista_eventos.append({"tipo": "BPM", "acao": "AUMENTAR"})
                     i += 4
                     ultimo_evento_foi_nota = False
                     continue
-                
+
                 if trecho == "OIT+":
                     self.lista_eventos.append({"tipo": "OITAVA", "acao": "AUMENTAR"})
                     i += 4
@@ -154,43 +145,44 @@ class TransformaMusica:
                     ultimo_evento_foi_nota = False
                     continue
 
-
             if caractere_atual.upper() in "ABCDEFGH":
-                nota = f"NOTA_{caractere_atual.upper()}"
 
-                if caractere_atual.upper() == "A": nota = "NOTA_LA"
-                elif caractere_atual.upper() == "B": nota = "NOTA_SI"
-                elif caractere_atual.upper() == "C": nota = "NOTA_DO"
-                elif caractere_atual.upper() == "D": nota = "NOTA_RE"
-                elif caractere_atual.upper() == "E": nota = "NOTA_MI"
-                elif caractere_atual.upper() == "F": nota = "NOTA_FA"
-                elif caractere_atual.upper() == "G": nota = "NOTA_SOL"
-                elif caractere_atual.upper() == "H": nota = "NOTA_SI_BEMOL"
+                mapa = {'A':'LA', 
+                        'B':'SI', 
+                        'C':'DO', 
+                        'D':'RE', 
+                        'E':'MI', 
+                        'F':'FA', 
+                        'G':'SOL', 
+                        'H':'SI_BEMOL'}
+                
+                nota = f"NOTA_{mapa.get(caractere_atual.upper(), 'LA')}"
 
                 self.lista_eventos.append({"tipo": "NOTA", "valor": nota})
                 ultimo_evento_foi_nota = True
                 ultima_nota_tocada = nota
 
-
             elif caractere_atual == " ":
+
                 self.lista_eventos.append({"tipo": "VOLUME", "acao": "DOBRAR"})
             
             elif caractere_atual == "?":
-                notas_possiveis = ["NOTA_LA", "NOTA_SI", "NOTA_DO", "NOTA_RE", "NOTA_MI", "NOTA_FA", "NOTA_SOL"]
-                nota_random = random.choice(notas_possiveis)
-                self.lista_eventos.append({"tipo": "NOTA", "valor": nota_random})
+
+                notas = ["NOTA_LA", "NOTA_SI", "NOTA_DO", "NOTA_RE", "NOTA_MI", "NOTA_FA", "NOTA_SOL"]
+
+                self.lista_eventos.append({"tipo": "NOTA", "valor": random.choice(notas)})
                 ultimo_evento_foi_nota = True
-                ultima_nota_tocada = nota_random
+                ultima_nota_tocada = self.lista_eventos[-1]["valor"]
 
             elif caractere_atual == "\n":
-                valores_possiveis = list(INSTRUMENTOS.values())
-                instrumento_aleatorio = random.choice(valores_possiveis)
-                
-                self.lista_eventos.append({"tipo": "INSTRUMENTO", "valor": instrumento_aleatorio})
+
+                inst_random = random.choice(list(INSTRUMENTOS.values()))
+                self.lista_eventos.append({"tipo": "INSTRUMENTO", "valor": inst_random})
                 ultimo_evento_foi_nota = False
 
             elif caractere_atual == "!":
-                self.lista_eventos.append({"tipo": "INSTRUMENTO", "valor": INSTRUMENTO_BANDONEON}) 
+
+                self.lista_eventos.append({"tipo": "INSTRUMENTO", "valor": INSTRUMENTO_BANDONEON})
                 ultimo_evento_foi_nota = False
 
             elif caractere_atual == ";":
@@ -198,149 +190,295 @@ class TransformaMusica:
                 ultimo_evento_foi_nota = False
             
             elif caractere_atual == ",":
-                self.lista_eventos.append({"tipo": "INSTRUMENTO", "valor": INSTRUMENTO_AGOGO}) 
+                self.lista_eventos.append({"tipo": "INSTRUMENTO", "valor": INSTRUMENTO_AGOGO})
                 ultimo_evento_foi_nota = False
 
             elif caractere_atual.isdigit():
-                valor_digito = int(caractere_atual)
-                self.lista_eventos.append({"tipo": "INSTRUMENTO_SOMA", "valor": valor_digito})
+                self.lista_eventos.append({"tipo": "INSTRUMENTO_SOMA", "valor": int(caractere_atual)})
                 ultimo_evento_foi_nota = False
 
             elif caractere_atual.upper() in "OIU":
+
                 if ultimo_evento_foi_nota and ultima_nota_tocada:
                     self.lista_eventos.append({"tipo": "NOTA", "valor": ultima_nota_tocada})
+
                 else:
-                    self.lista_eventos.append({"tipo": "INSTRUMENTO", "valor": INSTRUMENTO_TELEFONE}) 
-                
+                    self.lista_eventos.append({"tipo": "INSTRUMENTO", "valor": INSTRUMENTO_TELEFONE})
                 ultimo_evento_foi_nota = False
 
             else:
-                pass 
+                pass
 
             i += 1
 
         return self.lista_eventos
 
-
 class TocadorNotas:
-    def __init__(self, bpm_inicial=BPM_DEFAULT, volume_inicial=VOLUME_DEFAULT, oitava_inicial=OITAVA_DEFAULT, instrumento_inicial=INSTRUMENTO_PADRAO_INICIAL):
-        self.bpm_atual = bpm_inicial
-        self.volume_atual = volume_inicial
-        self.oitava_atual = oitava_inicial
-        self.instrumento_atual_id = instrumento_inicial
+    def __init__(self):
+
         self.player = None
+        self.inicializado = False
 
-        self.mapa_notas_midi = {
-            "NOTA_DO": 60,
-            "NOTA_RE": 62,
-            "NOTA_MI": 64,
-            "NOTA_FA": 65,
-            "NOTA_SOL": 67,
-            "NOTA_LA": 69,
-            "NOTA_SI": 71,
-            "NOTA_SI_BEMOL": 70
+        try:
+            pygame.init()
+            pygame.midi.init()
+            port = pygame.midi.get_default_output_id()
+            if port == -1: port = 0
+            self.player = pygame.midi.Output(port)
+            self.inicializado = True
+
+        except Exception as e:
+            print(f"[ERRO MIDI] {e}")
+
+        self.config_inicial = {
+            'bpm': BPM_DEFAULT, 
+            'volume': VOLUME_DEFAULT, 
+            'oitava': OITAVA_DEFAULT, 
+            'instrumento': INSTRUMENTO_DEFAULT
         }
-        
-        pygame.init()
-        pygame.midi.init()
-        default_id = pygame.midi.get_default_output_id()
-        self.player = pygame.midi.Output(default_id)
-        self.player.set_instrument(self.instrumento_atual_id)
-        print("[MIDI] Player inicializado.")
 
+        self.bpm_atual = BPM_DEFAULT
+        self.volume_atual = VOLUME_DEFAULT
+        self.oitava_atual = OITAVA_DEFAULT
+        self.instrumento_atual_id = INSTRUMENTO_DEFAULT
+        
+        self.tocando = False 
+        self.evento_pausa = threading.Event()
+        self.evento_pausa.set() 
+
+    def atualizarConfiguracao(self, bpm, volume, oitava, instrumento_id):
+
+        self.config_inicial = {
+            'bpm': bpm, 
+            'volume': volume, 
+            'oitava': oitava, 
+            'instrumento': instrumento_id
+        }
+
+        self.bpm_atual = bpm
+        self.volume_atual = volume
+        self.oitava_atual = oitava
+        self.trocarInstrumento(instrumento_id)
+
+    def restaurarEstadoInicial(self):
+        config_inicial = self.config_inicial
+        self.bpm_atual = config_inicial['bpm']
+        self.volume_atual = config_inicial['volume']
+        self.oitava_atual = config_inicial['oitava']
+        self.trocarInstrumento(config_inicial['instrumento'])
+
+    def fechar(self):
+
+        if self.player:
+            self.player.close()
+            pygame.midi.quit()
+            pygame.quit()
+
+    def pararExecucaoCompleta(self):
+        self.tocando = False
+        self.evento_pausa.set() 
+
+    def pausarMusica(self):
+        self.evento_pausa.clear()
+
+    def despausarMusica(self):
+        self.evento_pausa.set()
 
     def calcularBPM(self):
-        return 60.0 / self.bpm_atual
+        return 60.0 / max(1, self.bpm_atual)
 
-    def tocarNota(self, nome_nota: str, duracao: float):
-        if not self.player: 
-            return
-        
-        nota_base = self.mapa_notas_midi.get(nome_nota)
-        if nota_base is None:
-            return
-            
-        nota_final = nota_base + (OITAVA_OFFSET * self.oitava_atual)
-        nota_final = max(MIN_NOTA, min(MAX_NOTA, nota_final))
-
-        self.player.note_on(nota_final, self.volume_atual)
-        time.sleep(duracao)
-        self.player.note_off(nota_final, self.volume_atual)
-        
-    def pausar(self, duracao: float):
+    def tocarNota(self, nome_nota, duracao):
         if not self.player: return
-        time.sleep(duracao)
+        base = MAPA_NOTAS_MIDI.get(nome_nota)
+        if base:
+            nota = base + (OITAVA_OFFSET * self.oitava_atual)
+            nota = max(MIN_NOTA, min(MAX_NOTA, nota))
+            self.player.note_on(nota, self.volume_atual)
+            time.sleep(duracao)
+            self.player.note_off(nota, self.volume_atual)
 
-    def ajustarBPM(self, acao: str):
-        if acao == "AUMENTAR":
-            self.bpm_atual += AUMENTO_BPM 
-        
-    def ajustarVolume(self, acao: str):
-        if acao == "DOBRAR":
-            self.volume_atual *= MULTIPLICA_VOLUME
-            self.volume_atual = min(self.volume_atual, MAX_VOLUME) 
-        
-    def ajustarOitava(self, acao: str):
-        if acao == "AUMENTAR":
+    def ajustarBPM(self, acao):
+        if acao == "AUMENTAR": 
+            self.bpm_atual += AUMENTO_BPM
+
+    def ajustarVolume(self, acao):
+        if acao == "DOBRAR": 
+            self.volume_atual = min(self.volume_atual * MULTIPLICA_VOLUME, MAX_VOLUME)
+
+    def ajustarOitava(self, acao):
+
+        if acao == "AUMENTAR": 
             self.oitava_atual = min(self.oitava_atual + 1, MAX_OITAVA)
-        elif acao == "DIMINUIR":
+
+        elif acao == "DIMINUIR": 
             self.oitava_atual = max(self.oitava_atual - 1, MIN_OITAVA)
 
-    def trocarInstrumento(self, valor_instrumento: int):
-        if not self.player: 
-            return
-        
-        novo_instrumento = max(MIN_NOTA, min(MAX_NOTA, valor_instrumento))
-        self.instrumento_atual_id = novo_instrumento
-        self.player.set_instrument(self.instrumento_atual_id)
-        
-    def somarInstrumento(self, valor_soma: int):
-        if not self.player: 
-            return
-        
-        novo_id = self.instrumento_atual_id + valor_soma
-        novo_id = novo_id % (MAX_INSTRUMENTO + 1)
-        
-        self.trocarInstrumento(novo_id)
+    def trocarInstrumento(self, valor):
+        if self.player:
+            self.instrumento_atual_id = max(MIN_INSTRUMENTO, min(MAX_INSTRUMENTO, valor))
+            self.player.set_instrument(self.instrumento_atual_id)
 
-    def tocarEventos(self, lista_eventos: list):
+    def somarInstrumento(self, valor):
+        novo = (self.instrumento_atual_id + valor) % (MAX_INSTRUMENTO + 1)
+        self.trocarInstrumento(novo)
+        
+    def pausarTempo(self, duracao):
+        time.sleep(duracao)
 
-        if not self.player:
-            print("Erro: Tocador MIDI não está ativo.")
+    def tocarEventos(self, lista_eventos, callback_fim=None):
+        self.tocando = True
+        self.evento_pausa.set()
+
+        if not self.inicializado or not self.player:
+            if callback_fim: callback_fim()
             return
 
         for evento in lista_eventos:
+            if not self.tocando: 
+                break
+            self.evento_pausa.wait()
+
             duracao = self.calcularBPM()
             tipo = evento.get('tipo')
             
-            if tipo == "NOTA":
-                self.tocarNota(evento.get('valor'), duracao)
-                
-            elif tipo == "PAUSA":
-                self.pausar(duracao)
-                
-            elif tipo == "BPM":
-                self.ajustarBPM(evento.get('acao'))
-                
-            elif tipo == "VOLUME":
-                self.ajustarVolume(evento.get('acao'))
-                
-            elif tipo == "OITAVA":
-                self.ajustarOitava(evento.get('acao'))
-                
-            elif tipo == "INSTRUMENTO":
-                self.trocarInstrumento(evento.get('valor'))
-                
-            elif tipo == "INSTRUMENTO_SOMA":
-                self.somarInstrumento(evento.get('valor'))
+            if tipo == "NOTA": self.tocarNota(evento['valor'], duracao)
+            elif tipo == "PAUSA": self.pausarTempo(duracao)
+            elif tipo == "BPM": self.ajustarBPM(evento['acao'])
+            elif tipo == "VOLUME": self.ajustarVolume(evento['acao'])
+            elif tipo == "OITAVA": self.ajustarOitava(evento['acao'])
+            elif tipo == "INSTRUMENTO": self.trocarInstrumento(evento['valor'])
+            elif tipo == "INSTRUMENTO_SOMA": self.somarInstrumento(evento['valor'])
+
+        self.tocando = False
+        if callback_fim:
+            callback_fim()
 
 
-def main():
 
-    root = tk.Tk()
-    root.withdraw()
+class GeradorMusica:
+    def __init__(self):
+        self.leitor = LeitorTexto()
+        self.transformador = TransformaMusica()
+        self.tocador = TocadorNotas()
+        self.thread = None
 
+    def carregar_arquivo_texto(self):
+        return self.leitor.abrirArquivo()
+
+    def salvar_arquivo_texto(self, texto_atual):
+        self.leitor.receberTextoEscrito(texto_atual)
+        return self.leitor.salvarArquivo() 
+
+    def tocar_musica(self, texto, config, callback_fim):
+        if self.thread and self.thread.is_alive():
+            self.tocador.pararExecucaoCompleta()
+            self.thread.join(timeout=1.0)
+
+        self.leitor.receberTextoEscrito(texto)
+        eventos = self.transformador.processarTexto(self.leitor.texto)
+        if not eventos: 
+            return False, "Texto vazio."
+
+        inst_id = INSTRUMENTOS.get(config['instrumento'], 0)
+        self.tocador.atualizarConfiguracao(
+            int(config['bpm']), int(config['volume']), 
+            int(config['oitava']), inst_id
+        )
+
+        self.thread = threading.Thread(target=self.tocador.tocarEventos, args=(eventos, callback_fim))
+        self.thread.daemon = True
+        self.thread.start()
+        return True, "Tocando..."
+
+    def pausar_musica(self):
+        self.tocador.pausarMusica()
+
+    def despausar_musica(self):
+        self.tocador.despausarMusica()
+
+    def parar_musica(self):
+        self.tocador.pararExecucaoCompleta()
+
+    def parar_e_resetar_musica(self):
+        self.tocador.pararExecucaoCompleta()
+        self.tocador.restaurarEstadoInicial()
     
+    def fechar_programa(self):
+        if self.tocador:
+            self.tocador.fechar()
 
-if __name__ == "__main__":
-    main()
+    def gerar_midi(self, texto, config):
+        if not HAS_MIDIUTIL:
+            return False, "MIDIUTIL não encontrado"
+
+        caminho = filedialog.asksaveasfilename(
+            defaultextension=".mid", 
+            filetypes=[("Arquivo MIDI", "*.mid")]
+        )
+        if not caminho:
+            return False, "Salvamento cancelado."
+
+        try:
+            comandos = self.transformador.processarTexto(texto)
+
+            bpm_atual = int(config['bpm'])
+            inst_atual = INSTRUMENTOS.get(config['instrumento'], 0)
+            vol_atual = int(config['volume'])
+            oitava_atual = int(config['oitava'])
+            
+            midi = MIDIFile(1)
+            track = 0
+            time_cursor = 0
+            
+            midi.addTrackName(track, time_cursor, "Gerado pelo Gerador de música")
+            midi.addTempo(track, time_cursor, bpm_atual)
+            midi.addProgramChange(track, 0, time_cursor, inst_atual)
+            
+            channel = 0
+            duration = 1
+
+            for cmd in comandos:
+                tipo = cmd['tipo']
+                
+                if tipo == "NOTA":
+
+                    nota_base = MAPA_NOTAS_MIDI.get(cmd.get('valor'), 60)
+                    note_num = nota_base + (OITAVA_OFFSET * oitava_atual)
+                    note_num = max(MIN_NOTA, min(MAX_NOTA, note_num))
+
+                    midi.addNote(track, channel, note_num, time_cursor, duration, vol_atual)
+                    time_cursor += duration
+
+                elif tipo == "PAUSA":
+                    time_cursor += duration
+
+                elif tipo == "BPM":
+                    if cmd.get('acao') == "AUMENTAR": 
+                        bpm_atual += AUMENTO_BPM
+                    midi.addTempo(track, time_cursor, bpm_atual)
+
+                elif tipo == "VOLUME":
+                    if cmd.get('acao') == "DOBRAR":
+                        vol_atual = min(MAX_VOLUME, vol_atual * MULTIPLICA_VOLUME)
+                
+                elif tipo == "OITAVA":
+                    if cmd.get('acao') == "AUMENTAR": 
+                        oitava_atual = min(oitava_atual + 1, MAX_OITAVA)
+                    elif cmd.get('acao') == "DIMINUIR": 
+                        oitava_atual = max(oitava_atual - 1, MIN_OITAVA)
+
+                elif tipo == "INSTRUMENTO":
+                    inst_atual = cmd.get('valor')
+                    midi.addProgramChange(track, 0, time_cursor, inst_atual)
+                
+                elif tipo == "INSTRUMENTO_SOMA":
+                    inst_atual = (inst_atual + cmd.get('valor')) % (MAX_INSTRUMENTO + 1)
+                    midi.addProgramChange(track, 0, time_cursor, inst_atual)
+
+            with open(caminho, "wb") as output_file:
+                midi.writeFile(output_file)
+            
+            return True, f"Arquivo MIDI exportado com sucesso em: {caminho}"
+
+        except Exception as e:
+            return False, f"Erro ao salvar MIDI: {str(e)}"
