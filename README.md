@@ -1,10 +1,4 @@
 # Trabalho_TCP
-trabalho pratico tcp
+Trabalho desenvolvido para a disciplina de Técnicas de Construção de Programas
 
-classes:
-GeradorMusica
-LeitorTexto
-TransformaMusica
-MapaCaracteres
-ControleMusica
-TocadorNotas
+O trabalho consiste de um gerador de música a partir de um texto digitado ou enviado pelo usuário, com diferentes configurações possíveis de notas, instrumentos, volume, etc.
