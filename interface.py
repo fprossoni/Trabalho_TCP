@@ -239,11 +239,3 @@ class AppGUI:
     def on_closing(self):
         self.controlador.fechar_programa()
         self.root.destroy()
-
-def main():
-    root = tk.Tk()
-    app = AppGUI(root, GeradorMusica())
-    root.mainloop()
-
-if __name__ == "__main__":
-    main()
